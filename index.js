@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.byauspy.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -39,6 +39,24 @@ async function run() {
             const result = await customersCollection.find().toArray();
             res.send(result)
         });
+        // update a medicine
+        app.put('/customers/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedCustomer = {
+                $set: {
+                    name: item.name,
+                    phone: item.phone,
+                    email: item.email,
+                    address: item.address,
+                    status: item.status
+                }
+            }
+
+            const result = await customersCollection.updateOne(filter, updatedCustomer)
+            res.send(result);
+        })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
