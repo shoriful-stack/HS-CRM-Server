@@ -27,6 +27,18 @@ async function run() {
         await client.connect();
 
         const customersCollection = client.db("crmDb").collection("customers");
+        // insert a customer
+        app.post("/customers", async (req, res) => {
+            const customers = req.body;
+            const result = await customersCollection.insertOne(customers);
+            res.send(result);
+        })
+
+        // get all customers
+        app.get("/customers", async (req, res) => {
+            const result = await customersCollection.find().toArray();
+            res.send(result)
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
