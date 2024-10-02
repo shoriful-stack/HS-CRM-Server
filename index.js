@@ -42,6 +42,30 @@ async function run() {
             res.send(result)
         });
 
+        // update a medicine
+        app.patch('/projects/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedProject = {
+                $set: {
+                    project_name: item.project_name,
+                    customer_name: item.customer_name,
+                    project_category: item.project_category,
+                    department: item.department,
+                    hod: item.hod,
+                    pm: item.pm,
+                    year: item.year,
+                    phase: item.phase,
+                    project_code: item.project_code
+                }
+            }
+
+            const result = await projectsCollection.updateOne(filter, updatedProject)
+            res.send(result);
+        })
+
+
         // insert a customer
         app.post("/customers", async (req, res) => {
             const customers = req.body;
