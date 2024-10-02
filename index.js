@@ -26,7 +26,22 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
 
+        const projectsCollection = client.db("crmDb").collection("projects");
         const customersCollection = client.db("crmDb").collection("customers");
+
+        // insert a project
+        app.post("/projects", async (req, res) => {
+            const projects = req.body;
+            const result = await projectsCollection.insertOne(projects);
+            res.send(result);
+        });
+
+        // get all projects
+        app.get("/projects", async (req, res) => {
+            const result = await projectsCollection.find().toArray();
+            res.send(result)
+        });
+
         // insert a customer
         app.post("/customers", async (req, res) => {
             const customers = req.body;
@@ -40,7 +55,7 @@ async function run() {
             res.send(result)
         });
         // update a medicine
-        app.put('/customers/:id', async (req, res) => {
+        app.patch('/customers/:id', async (req, res) => {
             const item = req.body;
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) }
