@@ -42,7 +42,7 @@ async function run() {
             res.send(result)
         });
 
-        // update a medicine
+        // update a projects
         app.patch('/projects/:id', async (req, res) => {
             const item = req.body;
             const id = req.params.id;
@@ -71,14 +71,39 @@ async function run() {
             const customers = req.body;
             const result = await customersCollection.insertOne(customers);
             res.send(result);
-        })
+        });
 
         // get all customers
+        // app.get("/customers", async (req, res) => {
+        //     const result = await customersCollection.find().toArray();
+        //     res.send(result)
+        // });
+
+        // Get all customers with pagination
         app.get("/customers", async (req, res) => {
-            const result = await customersCollection.find().toArray();
-            res.send(result)
+            try {
+                const page = parseInt(req.query.page) || 1; // Default to page 1
+                const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+                const skip = (page - 1) * limit;
+
+                const total = await customersCollection.countDocuments();
+                const customers = await customersCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    customers,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch customers" });
+            }
         });
-        // update a medicine
+
+
+        // update a customers
         app.patch('/customers/:id', async (req, res) => {
             const item = req.body;
             const id = req.params.id;
