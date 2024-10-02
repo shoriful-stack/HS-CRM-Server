@@ -37,11 +37,33 @@ async function run() {
         });
 
         // get all projects
-        app.get("/projects", async (req, res) => {
-            const result = await projectsCollection.find().toArray();
-            res.send(result)
-        });
+        // app.get("/projects", async (req, res) => {
+        //     const result = await projectsCollection.find().toArray();
+        //     res.send(result)
+        // });
 
+        // Get all customers with pagination
+        app.get("/projects", async (req, res) => {
+            try {
+                const page = parseInt(req.query.page) || 1; // Default to page 1
+                const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+                const skip = (page - 1) * limit;
+
+                const total = await projectsCollection.countDocuments();
+                const projects = await projectsCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    projects,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch customers" });
+            }
+        });
         // update a projects
         app.patch('/projects/:id', async (req, res) => {
             const item = req.body;
