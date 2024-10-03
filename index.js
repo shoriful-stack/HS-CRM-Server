@@ -36,17 +36,24 @@ async function run() {
             res.send(result);
         });
 
-        // get all projects
-        // app.get("/projects", async (req, res) => {
-        //     const result = await projectsCollection.find().toArray();
-        //     res.send(result)
-        // });
+        // New API for exporting all projects without pagination
+        app.get("/projects/all", async (req, res) => {
+            try {
+                const projects = await projectsCollection.find().toArray();
+                res.send(projects);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch all projects" });
+            }
+        });
 
         // Get all customers with pagination
         app.get("/projects", async (req, res) => {
             try {
-                const page = parseInt(req.query.page) || 1; // Default to page 1
-                const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1; 
+                const limit = parseInt(req.query.limit) || 10; 
+                // Default to 10 items per page
                 const skip = (page - 1) * limit;
 
                 const total = await projectsCollection.countDocuments();
@@ -95,17 +102,47 @@ async function run() {
             res.send(result);
         });
 
-        // get all customers
-        // app.get("/customers", async (req, res) => {
-        //     const result = await customersCollection.find().toArray();
-        //     res.send(result)
-        // });
+        // Update the import functionality in your backend
+        app.post('/customers', async (req, res) => {
+            try {
+                // This should be an array of customer objects
+                const customers = req.body; 
+
+                // Ensure customers is an array
+                if (!Array.isArray(customers)) {
+                    return res.status(400).send({ error: 'Expected an array of customers' });
+                }
+
+                // Insert each customer into the database
+                const result = await customersCollection.insertMany(customers);
+
+                res.send({ success: true, insertedCount: result.insertedCount });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: 'Failed to import customers' });
+            }
+        });
+
+        // New API for exporting all customers without pagination
+        app.get("/customers/all", async (req, res) => {
+            try {
+                // Fetch all customers
+                const customers = await customersCollection.find().toArray(); 
+                res.send(customers);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch all customers" });
+            }
+        });
+
 
         // Get all customers with pagination
         app.get("/customers", async (req, res) => {
             try {
-                const page = parseInt(req.query.page) || 1; // Default to page 1
-                const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1; 
+                // Default to 10 items per page
+                const limit = parseInt(req.query.limit) || 10; 
                 const skip = (page - 1) * limit;
 
                 const total = await customersCollection.countDocuments();
