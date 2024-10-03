@@ -103,18 +103,18 @@ async function run() {
         });
 
         // Update the import functionality in your backend
-        app.post('/customers', async (req, res) => {
+        app.post('/customers/all', async (req, res) => {
             try {
                 // This should be an array of customer objects
                 const customers = req.body; 
 
                 // Ensure customers is an array
-                if (!Array.isArray(customers)) {
+                if (!Array.isArray(customers) || customers.length === 0) {
                     return res.status(400).send({ error: 'Expected an array of customers' });
                 }
 
                 // Insert each customer into the database
-                const result = await customersCollection.insertMany(customers);
+                const result = await customersCollection.insertMany(customers, {ordered: false});
 
                 res.send({ success: true, insertedCount: result.insertedCount });
             } catch (error) {
@@ -124,6 +124,17 @@ async function run() {
         });
 
         // New API for exporting all customers without pagination
+        // app.get("/customers/all", async (req, res) => {
+        //     try {
+        //         // Fetch all customers
+        //         const customers = await customersCollection.find().toArray(); 
+        //         res.send(customers);
+        //     } catch (error) {
+        //         console.error(error);
+        //         res.status(500).send({ error: "Failed to fetch all customers" });
+        //     }
+        // });
+
         app.get("/customers/all", async (req, res) => {
             try {
                 // Fetch all customers
