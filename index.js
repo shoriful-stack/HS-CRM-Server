@@ -51,8 +51,8 @@ async function run() {
         app.get("/projects", async (req, res) => {
             try {
                 // Default to page 1
-                const page = parseInt(req.query.page) || 1; 
-                const limit = parseInt(req.query.limit) || 10; 
+                const page = parseInt(req.query.page) || 1;
+                const limit = parseInt(req.query.limit) || 10;
                 // Default to 10 items per page
                 const skip = (page - 1) * limit;
 
@@ -92,7 +92,27 @@ async function run() {
 
             const result = await projectsCollection.updateOne(filter, updatedProject)
             res.send(result);
-        })
+        });
+
+        // import functionality
+        app.post('/projects/all', async (req, res) => {
+            try {
+                // This should be an array of customer objects
+                const projects = req.body;
+
+                // Ensure projects is an array
+                if (!Array.isArray(projects) || projects.length === 0) {
+                    return res.status(400).send({ error: 'Expected an array of projects' });
+                }
+
+                const result = await projectsCollection.insertMany(projects, { ordered: false });
+
+                res.send({ success: true, insertedCount: result.insertedCount });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: 'Failed to import projects' });
+            }
+        });
 
 
         // insert a customer
@@ -102,19 +122,18 @@ async function run() {
             res.send(result);
         });
 
-        // Update the import functionality in your backend
+        // import functionality
         app.post('/customers/all', async (req, res) => {
             try {
                 // This should be an array of customer objects
-                const customers = req.body; 
+                const customers = req.body;
 
                 // Ensure customers is an array
                 if (!Array.isArray(customers) || customers.length === 0) {
                     return res.status(400).send({ error: 'Expected an array of customers' });
                 }
 
-                // Insert each customer into the database
-                const result = await customersCollection.insertMany(customers, {ordered: false});
+                const result = await customersCollection.insertMany(customers, { ordered: false });
 
                 res.send({ success: true, insertedCount: result.insertedCount });
             } catch (error) {
@@ -123,22 +142,10 @@ async function run() {
             }
         });
 
-        // New API for exporting all customers without pagination
-        // app.get("/customers/all", async (req, res) => {
-        //     try {
-        //         // Fetch all customers
-        //         const customers = await customersCollection.find().toArray(); 
-        //         res.send(customers);
-        //     } catch (error) {
-        //         console.error(error);
-        //         res.status(500).send({ error: "Failed to fetch all customers" });
-        //     }
-        // });
-
         app.get("/customers/all", async (req, res) => {
             try {
                 // Fetch all customers
-                const customers = await customersCollection.find().toArray(); 
+                const customers = await customersCollection.find().toArray();
                 res.send(customers);
             } catch (error) {
                 console.error(error);
@@ -151,9 +158,9 @@ async function run() {
         app.get("/customers", async (req, res) => {
             try {
                 // Default to page 1
-                const page = parseInt(req.query.page) || 1; 
+                const page = parseInt(req.query.page) || 1;
                 // Default to 10 items per page
-                const limit = parseInt(req.query.limit) || 10; 
+                const limit = parseInt(req.query.limit) || 10;
                 const skip = (page - 1) * limit;
 
                 const total = await customersCollection.countDocuments();
