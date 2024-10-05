@@ -31,10 +31,19 @@ async function run() {
         const departmentsCollection = client.db("crmDb").collection("departments");
         const designationsCollection = client.db("crmDb").collection("designations");
 
+        await customersCollection.createIndex(
+            { name: 1 },
+            { unique: true, name: "name" }
+        );
         await departmentsCollection.createIndex(
             { department_name: 1 },
             { unique: true, name: "department_name" }
         );
+        // await designationsCollection.createIndex(
+        //     { designation: 1 },
+        //     { unique: true, name: "designation" }
+        // );
+
 
 
         // insert a project
@@ -126,8 +135,18 @@ async function run() {
         // insert a customer
         app.post("/customers", async (req, res) => {
             const customers = req.body;
-            const result = await customersCollection.insertOne(customers);
-            res.send(result);
+            try {
+                const result = await customersCollection.insertOne(customers);
+                res.send(result);
+            }
+            catch (error) {
+                if (error.code === 11000) { // MongoDB duplicate key error code
+                    res.status(400).send({ error: "Customer already exists." });
+                } else {
+                    console.error("Error inserting customer:", error);
+                    res.status(500).send({ error: "Failed to add customer." });
+                }
+            }
         });
 
         // import functionality
@@ -209,16 +228,9 @@ async function run() {
         });
 
 
-        // insert a department
         // Insert a department with duplicate handling
         app.post("/departments", async (req, res) => {
             const department = req.body;
-
-            // **Validate the request body**
-            if (!department.department_name) {
-                return res.status(400).send({ error: "Department name is required." });
-            }
-
             try {
                 // Attempt to insert the new department
                 const result = await departmentsCollection.insertOne(department);
