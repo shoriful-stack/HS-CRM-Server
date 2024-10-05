@@ -31,6 +31,12 @@ async function run() {
         const departmentsCollection = client.db("crmDb").collection("departments");
         const designationsCollection = client.db("crmDb").collection("designations");
 
+        await departmentsCollection.createIndex(
+            { department_name: 1 },
+            { unique: true, name: "department_name" }
+        );
+
+
         // insert a project
         app.post("/projects", async (req, res) => {
             const projects = req.body;
@@ -204,11 +210,29 @@ async function run() {
 
 
         // insert a department
+        // Insert a department with duplicate handling
         app.post("/departments", async (req, res) => {
-            const departments = req.body;
-            const result = await departmentsCollection.insertOne(departments);
-            res.send(result);
+            const department = req.body;
+
+            // **Validate the request body**
+            if (!department.department_name) {
+                return res.status(400).send({ error: "Department name is required." });
+            }
+
+            try {
+                // Attempt to insert the new department
+                const result = await departmentsCollection.insertOne(department);
+                res.send(result);
+            } catch (error) {
+                if (error.code === 11000) { // MongoDB duplicate key error code
+                    res.status(400).send({ error: "Department already exists." });
+                } else {
+                    console.error("Error inserting department:", error);
+                    res.status(500).send({ error: "Failed to add department." });
+                }
+            }
         });
+
 
         // Get 1st 10 customers with pagination
         app.get("/departments", async (req, res) => {
@@ -234,6 +258,26 @@ async function run() {
                 res.status(500).send({ error: "Failed to fetch departments" });
             }
         });
+
+        // update a departments
+        app.patch('/departments/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedDepartment = {
+                $set: {
+                    department_name: item.department_name,
+                    department_status: item.department_status
+                }
+            }
+
+            const result = await departmentsCollection.updateOne(filter, updatedDepartment)
+            res.send(result);
+        });
+
+
+
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
