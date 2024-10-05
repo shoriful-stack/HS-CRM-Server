@@ -28,6 +28,8 @@ async function run() {
 
         const projectsCollection = client.db("crmDb").collection("projects");
         const customersCollection = client.db("crmDb").collection("customers");
+        const departmentsCollection = client.db("crmDb").collection("departments");
+        const designationsCollection = client.db("crmDb").collection("designations");
 
         // insert a project
         app.post("/projects", async (req, res) => {
@@ -47,7 +49,7 @@ async function run() {
             }
         });
 
-        // Get all customers with pagination
+        // Get 1st 10 customers with pagination
         app.get("/projects", async (req, res) => {
             try {
                 // Default to page 1
@@ -94,7 +96,7 @@ async function run() {
             res.send(result);
         });
 
-        // import functionality
+        // import projects functionality
         app.post('/projects/all', async (req, res) => {
             try {
                 // This should be an array of customer objects
@@ -142,6 +144,7 @@ async function run() {
             }
         });
 
+        // get all customers
         app.get("/customers/all", async (req, res) => {
             try {
                 // Fetch all customers
@@ -154,7 +157,7 @@ async function run() {
         });
 
 
-        // Get all customers with pagination
+        // Get 1st 10 customers with pagination
         app.get("/customers", async (req, res) => {
             try {
                 // Default to page 1
@@ -197,7 +200,15 @@ async function run() {
 
             const result = await customersCollection.updateOne(filter, updatedCustomer)
             res.send(result);
-        })
+        });
+
+
+        // insert a department
+        app.post("/departments", async (req, res) => {
+            const departments = req.body;
+            const result = await departmentsCollection.insertOne(departments);
+            res.send(result);
+        });
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
