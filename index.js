@@ -210,6 +210,31 @@ async function run() {
             res.send(result);
         });
 
+        // Get 1st 10 customers with pagination
+        app.get("/departments", async (req, res) => {
+            try {
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1;
+                // Default to 10 items per page
+                const limit = parseInt(req.query.limit) || 10;
+                const skip = (page - 1) * limit;
+
+                const total = await departmentsCollection.countDocuments();
+                const departments = await departmentsCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    departments,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch departments" });
+            }
+        });
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
