@@ -230,10 +230,10 @@ async function run() {
 
         // Insert a department with duplicate handling
         app.post("/departments", async (req, res) => {
-            const department = req.body;
+            const departments = req.body;
             try {
                 // Attempt to insert the new department
-                const result = await departmentsCollection.insertOne(department);
+                const result = await departmentsCollection.insertOne(departments);
                 res.send(result);
             } catch (error) {
                 if (error.code === 11000) { // MongoDB duplicate key error code
@@ -285,6 +285,24 @@ async function run() {
 
             const result = await departmentsCollection.updateOne(filter, updatedDepartment)
             res.send(result);
+        });
+
+
+        // Insert a department with duplicate handling
+        app.post("/designations", async (req, res) => {
+            const designations = req.body;
+            try {
+                // Attempt to insert the new designations
+                const result = await designationsCollection.insertOne(designations);
+                res.send(result);
+            } catch (error) {
+                if (error.code === 11000) { // MongoDB duplicate key error code
+                    res.status(400).send({ error: "Department already exists." });
+                } else {
+                    console.error("Error inserting department:", error);
+                    res.status(500).send({ error: "Failed to add department." });
+                }
+            }
         });
 
 
