@@ -174,7 +174,7 @@ async function run() {
             }
         });
 
-        // get all customers
+        // New API for exporting all projects without pagination
         app.get("/customers/all", async (req, res) => {
             try {
                 // Fetch all customers
@@ -392,6 +392,26 @@ async function run() {
             }
         });
 
+        // import employees functionality
+        app.post('/employees/all', async (req, res) => {
+            try {
+                // This should be an array of customer objects
+                const employees = req.body;
+
+                // Ensure employees is an array
+                if (!Array.isArray(employees) || employees.length === 0) {
+                    return res.status(400).send({ error: 'Expected an array of employees' });
+                }
+
+                const result = await employeesCollection.insertMany(employees, { ordered: false });
+
+                res.send({ success: true, insertedCount: result.insertedCount });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: 'Failed to import employees' });
+            }
+        });
+
         // Get 1st 10 employees with pagination
         app.get("/employees", async (req, res) => {
             try {
@@ -414,6 +434,18 @@ async function run() {
             } catch (error) {
                 console.error(error);
                 res.status(500).send({ error: "Failed to fetch employees" });
+            }
+        });
+
+        // New API for exporting all projects without pagination
+        app.get("/employees/all", async (req, res) => {
+            try {
+                // Fetch all employees
+                const employees = await employeesCollection.find().toArray();
+                res.send(employees);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch all employees" });
             }
         });
 
