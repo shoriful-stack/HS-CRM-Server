@@ -28,6 +28,7 @@ async function run() {
 
         const projectsCollection = client.db("crmDb").collection("projects");
         const customersCollection = client.db("crmDb").collection("customers");
+        const employeesCollection = client.db("crmDb").collection("employees");
         const departmentsCollection = client.db("crmDb").collection("departments");
         const designationsCollection = client.db("crmDb").collection("designations");
 
@@ -42,6 +43,10 @@ async function run() {
         await designationsCollection.createIndex(
             { designation: 1 },
             { unique: true, name: "designation" }
+        );
+        await employeesCollection.createIndex(
+            { employee_name: 1 },
+            { unique: true, name: "employee_name" }
         );
 
 
@@ -368,6 +373,48 @@ async function run() {
 
             const result = await designationsCollection.updateOne(filter, updatedDesignation)
             res.send(result);
+        });
+
+        // insert a customer with duplicate error handling
+        app.post("/employees", async (req, res) => {
+            const employees = req.body;
+            try {
+                const result = await employeesCollection.insertOne(employees);
+                res.send(result);
+            }
+            catch (error) {
+                if (error.code === 11000) { // MongoDB duplicate key error code
+                    res.status(400).send({ error: "This Employee already exists." });
+                } else {
+                    console.error("Error inserting employee:", error);
+                    res.status(500).send({ error: "Failed to add employee." });
+                }
+            }
+        });
+
+        // Get 1st 10 employees with pagination
+        app.get("/employees", async (req, res) => {
+            try {
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1;
+                // Default to 10 items per page
+                const limit = parseInt(req.query.limit) || 10;
+                const skip = (page - 1) * limit;
+
+                const total = await employeesCollection.countDocuments();
+                const employees = await employeesCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    employees,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch employees" });
+            }
         });
 
 
