@@ -246,7 +246,7 @@ async function run() {
         });
 
 
-        // Get 1st 10 customers with pagination
+        // Get 1st 10 departments with pagination
         app.get("/departments", async (req, res) => {
             try {
                 // Default to page 1
@@ -288,7 +288,7 @@ async function run() {
         });
 
 
-        // Insert a department with duplicate handling
+        // Insert a designation with duplicate handling
         app.post("/designations", async (req, res) => {
             const designations = req.body;
             try {
@@ -297,11 +297,36 @@ async function run() {
                 res.send(result);
             } catch (error) {
                 if (error.code === 11000) { // MongoDB duplicate key error code
-                    res.status(400).send({ error: "Department already exists." });
+                    res.status(400).send({ error: "Designation already exists." });
                 } else {
-                    console.error("Error inserting department:", error);
-                    res.status(500).send({ error: "Failed to add department." });
+                    console.error("Error inserting designation:", error);
+                    res.status(500).send({ error: "Failed to add designation." });
                 }
+            }
+        });
+
+        // Get 1st 10 designations with pagination
+        app.get("/designations", async (req, res) => {
+            try {
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1;
+                // Default to 10 items per page
+                const limit = parseInt(req.query.limit) || 10;
+                const skip = (page - 1) * limit;
+
+                const total = await designationsCollection.countDocuments();
+                const designations = await designationsCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    designations,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch designations" });
             }
         });
 
