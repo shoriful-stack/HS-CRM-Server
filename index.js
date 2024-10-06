@@ -317,7 +317,7 @@ async function run() {
                         }
                     };
 
-                    const departmentResult = await departmentsCollection.updateOne(filter, updatedDepartment, { session });
+                    const result = await departmentsCollection.updateOne(filter, updatedDepartment, { session });
 
                     // 3. If the department name has changed, update related employees
                     if (oldDepartmentName !== item.department_name) {
@@ -328,7 +328,7 @@ async function run() {
                         );
                     }
 
-                    res.send(departmentResult);
+                    res.send(result);
                 });
 
             } catch (error) {
@@ -394,20 +394,56 @@ async function run() {
             }
         });
 
-        // update a designations
+
+        // Update a designations and related employees
         app.patch('/designations/:id', async (req, res) => {
             const item = req.body;
             const id = req.params.id;
-            const filter = { _id: new ObjectId(id) }
-            const updatedDesignation = {
-                $set: {
-                    designation: item.designation,
-                    designation_status: item.designation_status
-                }
-            }
+            const filter = { _id: new ObjectId(id) };
 
-            const result = await designationsCollection.updateOne(filter, updatedDesignation)
-            res.send(result);
+            // Start a session for transaction
+            const session = client.startSession();
+
+            try {
+                // Start transaction
+                await session.withTransaction(async () => {
+                    // 1. Find the existing designations
+                    const existingDesignation = await designationsCollection.findOne(filter, { session });
+                    if (!existingDesignation) {
+                        res.status(404).send({ error: 'Designation not found' });
+                        return;
+                    }
+
+                    const oldDesignation = existingDesignation.designation;
+
+                    // 2. Update the designation
+                    const updatedDesignation = {
+                        $set: {
+                            designation: item.designation,
+                            designation_status: item.designation_status
+                        }
+                    };
+
+                    const result = await designationsCollection.updateOne(filter, updatedDesignation, { session });
+
+                    // 3. If the designation name has changed, update related employees
+                    if (oldDesignation !== item.designation) {
+                        const employeeUpdateResult = await employeesCollection.updateMany(
+                            { designation: oldDesignation },
+                            { $set: { designation: item.designation } },
+                            { session }
+                        );
+                    }
+
+                    res.send(result);
+                });
+
+            } catch (error) {
+                console.error("Error updating designation and employees:", error);
+                res.status(500).send({ error: "Failed to update designation and related employees." });
+            } finally {
+                await session.endSession();
+            }
         });
 
         // insert a customer with duplicate error handling
