@@ -213,23 +213,58 @@ async function run() {
         });
 
 
-        // update a customers
+        // Update a customers and related employees
         app.patch('/customers/:id', async (req, res) => {
             const item = req.body;
             const id = req.params.id;
-            const filter = { _id: new ObjectId(id) }
-            const updatedCustomer = {
-                $set: {
-                    name: item.name,
-                    phone: item.phone,
-                    email: item.email,
-                    address: item.address,
-                    status: item.status
-                }
-            }
+            const filter = { _id: new ObjectId(id) };
 
-            const result = await customersCollection.updateOne(filter, updatedCustomer)
-            res.send(result);
+            // Start a session for transaction
+            const session = client.startSession();
+
+            try {
+                // Start transaction
+                await session.withTransaction(async () => {
+                    // 1. Find the existing customers
+                    const existingCustomer = await customersCollection.findOne(filter, { session });
+                    if (!existingCustomer) {
+                        res.status(404).send({ error: 'Customer not found' });
+                        return;
+                    }
+
+                    const oldCustomer = existingCustomer.name;
+
+                    // 2. Update the customer
+                    const updatedCustomer = {
+                        $set: {
+                            name: item.name,
+                            phone: item.phone,
+                            email: item.email,
+                            address: item.address,
+                            status: item.status
+                        }
+                    };
+
+                    const result = await customersCollection.updateOne(filter, updatedCustomer, { session });
+
+                    // 3. If the customer name has changed, update related projects
+                    if (oldCustomer !== item.name) {
+                        const customerUpdateResult = await projectsCollection.updateMany(
+                            { customer_name: oldCustomer },
+                            { $set: { customer_name: item.name } },
+                            { session }
+                        );
+                    }
+
+                    res.send(result);
+                });
+
+            } catch (error) {
+                console.error("Error updating customer and projects:", error);
+                res.status(500).send({ error: "Failed to update customer and related projects." });
+            } finally {
+                await session.endSession();
+            }
         });
 
 
