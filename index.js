@@ -417,6 +417,27 @@ async function run() {
             }
         });
 
+        // update a employees
+        app.patch('/employees/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedEmployee = {
+                $set: {
+                    employee_name: item.employee_name,
+                    department_name: item.department_name,
+                    designation: item.designation,
+                    employee_phone: item.employee_phone,
+                    employee_email: item.employee_email,
+                    employee_uid: item.employee_uid,
+                    employee_pass: item.employee_pass
+                }
+            }
+
+            const result = await employeesCollection.updateOne(filter, updatedEmployee)
+            res.send(result);
+        });
+
 
 
 
