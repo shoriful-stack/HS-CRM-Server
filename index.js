@@ -132,7 +132,7 @@ async function run() {
         });
 
 
-        // insert a customer
+        // insert a customer with duplicate error handling
         app.post("/customers", async (req, res) => {
             const customers = req.body;
             try {
@@ -271,6 +271,18 @@ async function run() {
             }
         });
 
+        // get all departments
+        app.get("/departments/all", async (req, res) => {
+            try {
+                // Fetch all departments
+                const departments = await departmentsCollection.find().toArray();
+                res.send(departments);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch all departments" });
+            }
+        });
+
         // update a departments
         app.patch('/departments/:id', async (req, res) => {
             const item = req.body;
@@ -327,6 +339,18 @@ async function run() {
             } catch (error) {
                 console.error(error);
                 res.status(500).send({ error: "Failed to fetch designations" });
+            }
+        });
+
+        // get all designations
+        app.get("/designations/all", async (req, res) => {
+            try {
+                // Fetch all designations
+                const designations = await designationsCollection.find().toArray();
+                res.send(designations);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch all designations" });
             }
         });
 
