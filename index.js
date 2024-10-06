@@ -39,10 +39,10 @@ async function run() {
             { department_name: 1 },
             { unique: true, name: "department_name" }
         );
-        // await designationsCollection.createIndex(
-        //     { designation: 1 },
-        //     { unique: true, name: "designation" }
-        // );
+        await designationsCollection.createIndex(
+            { designation: 1 },
+            { unique: true, name: "designation" }
+        );
 
 
 
@@ -330,6 +330,21 @@ async function run() {
             }
         });
 
+        // update a designations
+        app.patch('/designations/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedDesignation = {
+                $set: {
+                    designation: item.designation,
+                    designation_status: item.designation_status
+                }
+            }
+
+            const result = await designationsCollection.updateOne(filter, updatedDesignation)
+            res.send(result);
+        });
 
 
 
