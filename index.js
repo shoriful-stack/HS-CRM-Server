@@ -288,20 +288,55 @@ async function run() {
             }
         });
 
-        // update a departments
+        // Update a department and related employees
         app.patch('/departments/:id', async (req, res) => {
             const item = req.body;
             const id = req.params.id;
-            const filter = { _id: new ObjectId(id) }
-            const updatedDepartment = {
-                $set: {
-                    department_name: item.department_name,
-                    department_status: item.department_status
-                }
-            }
+            const filter = { _id: new ObjectId(id) };
 
-            const result = await departmentsCollection.updateOne(filter, updatedDepartment)
-            res.send(result);
+            // Start a session for transaction
+            const session = client.startSession();
+
+            try {
+                // Start transaction
+                await session.withTransaction(async () => {
+                    // 1. Find the existing department
+                    const existingDepartment = await departmentsCollection.findOne(filter, { session });
+                    if (!existingDepartment) {
+                        res.status(404).send({ error: 'Department not found' });
+                        return;
+                    }
+
+                    const oldDepartmentName = existingDepartment.department_name;
+
+                    // 2. Update the department
+                    const updatedDepartment = {
+                        $set: {
+                            department_name: item.department_name,
+                            department_status: item.department_status
+                        }
+                    };
+
+                    const departmentResult = await departmentsCollection.updateOne(filter, updatedDepartment, { session });
+
+                    // 3. If the department name has changed, update related employees
+                    if (oldDepartmentName !== item.department_name) {
+                        const employeeUpdateResult = await employeesCollection.updateMany(
+                            { department_name: oldDepartmentName },
+                            { $set: { department_name: item.department_name } },
+                            { session }
+                        );
+                    }
+
+                    res.send(departmentResult);
+                });
+
+            } catch (error) {
+                console.error("Error updating department and employees:", error);
+                res.status(500).send({ error: "Failed to update department and related employees." });
+            } finally {
+                await session.endSession();
+            }
         });
 
 
