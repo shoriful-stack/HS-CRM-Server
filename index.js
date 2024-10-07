@@ -29,6 +29,7 @@ async function run() {
         const projectsCollection = client.db("crmDb").collection("projects");
         const customersCollection = client.db("crmDb").collection("customers");
         const employeesCollection = client.db("crmDb").collection("employees");
+        const projects_MasterCollection = client.db("crmDb").collection("projects_master");
         const departmentsCollection = client.db("crmDb").collection("departments");
         const designationsCollection = client.db("crmDb").collection("designations");
 
@@ -481,7 +482,25 @@ async function run() {
             }
         });
 
-        // insert a customer with duplicate error handling
+
+        // insert a project with duplicate error handling
+        app.post("/projects_master", async (req, res) => {
+            const projects_master = req.body;
+            try {
+                const result = await projects_MasterCollection.insertOne(projects_master);
+                res.send(result);
+            }
+            catch (error) {
+                if (error.code === 11000) { // MongoDB duplicate key error code
+                    res.status(400).send({ error: "This Project already exists." });
+                } else {
+                    console.error("Error inserting project:", error);
+                    res.status(500).send({ error: "Failed to add project." });
+                }
+            }
+        });
+
+        // insert a employee with duplicate error handling
         app.post("/employees", async (req, res) => {
             const employees = req.body;
             try {
