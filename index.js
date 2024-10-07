@@ -49,6 +49,10 @@ async function run() {
             { employee_name: 1 },
             { unique: true, name: "employee_name" }
         );
+        await projects_MasterCollection.createIndex(
+            { project_name: 1 },
+            { unique: true, name: "project_name" }
+        );
 
 
 
@@ -522,6 +526,71 @@ async function run() {
             } catch (error) {
                 console.error(error);
                 res.status(500).send({ error: "Failed to fetch projects" });
+            }
+        });
+
+
+        // Update a project and related project collection
+        app.patch('/projects_master/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+
+            // Start a session for transaction
+            const session = client.startSession();
+
+            try {
+                // Start transaction
+                await session.withTransaction(async () => {
+                    // 1. Find the existing project
+                    const existingProject = await projects_MasterCollection.findOne(filter, { session });
+                    if (!existingProject) {
+                        res.status(404).send({ error: 'Project not found' });
+                        return;
+                    }
+
+                    const oldProjectName = existingProject.project_name;
+
+                    // 2. Update the project
+                    const updatedProject = {
+                        $set: {
+                            project_name: item.project_name,
+                            project_code: item.project_code,
+                            project_status: item.project_status
+                        }
+                    };
+
+                    const result = await projects_MasterCollection.updateOne(filter, updatedProject, { session });
+
+                    // 3. If the project name has changed, update related project
+                    if (oldProjectName !== item.project_name) {
+                        const projectUpdateResult = await projectsCollection.updateMany(
+                            { project_name: oldProjectName },
+                            { $set: { project_name: item.project_name } },
+                            { session }
+                        );
+                    }
+
+                    res.send(result);
+                });
+
+            } catch (error) {
+                console.error("Error updating projects:", error);
+                res.status(500).send({ error: "Failed to update projects_master and related projects." });
+            } finally {
+                await session.endSession();
+            }
+        });
+
+        // get all projects(projects_master)
+        app.get("/projects_master/all", async (req, res) => {
+            try {
+                // Fetch all projects(projects_master)
+                const projects = await projects_MasterCollection.find().toArray();
+                res.send(projects);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch all projects" });
             }
         });
 
