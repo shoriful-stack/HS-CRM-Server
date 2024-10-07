@@ -1,6 +1,8 @@
 const express = require('express');
 const app = express();
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
 require('dotenv').config();
 const port = process.env.PORT || 5000;
 
@@ -27,6 +29,7 @@ async function run() {
         await client.connect();
 
         const projectsCollection = client.db("crmDb").collection("projects");
+        const contractsCollection = client.db("crmDb").collection("contracts");
         const customersCollection = client.db("crmDb").collection("customers");
         const employeesCollection = client.db("crmDb").collection("employees");
         const projects_MasterCollection = client.db("crmDb").collection("projects_master");
@@ -54,6 +57,36 @@ async function run() {
             { unique: true, name: "project_name" }
         );
 
+        // Set storage engine
+        const storage = multer.diskStorage({
+            destination: './uploads/',  // You can change the path as needed
+            filename: (req, file, cb) => {
+                cb(null, Date.now() + path.extname(file.originalname)); // Append file extension
+            },
+        });
+
+
+        // Initialize upload
+        const upload = multer({
+            storage: storage,
+            limits: { fileSize: 10000000 }, // Limit file size
+            fileFilter: (req, file, cb) => {
+                checkFileType(file, cb);
+            },
+        });
+
+        // Check file type
+        function checkFileType(file, cb) {
+            const filetypes = /jpeg|jpg|png|pdf/;
+            const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+            const mimetype = filetypes.test(file.mimetype);
+
+            if (mimetype && extname) {
+                return cb(null, true);
+            } else {
+                cb('Error: Only images and PDFs are allowed!');
+            }
+        }
 
 
         // insert a project
@@ -687,6 +720,32 @@ async function run() {
 
             const result = await employeesCollection.updateOne(filter, updatedEmployee)
             res.send(result);
+        });
+
+        // Endpoint to handle file and form data
+        app.post('/contracts', upload.single('contract_file'), async (req, res) => {
+            try {
+                const newProject = {
+                    contract_title: req.body.contract_title,
+                    customer_name: req.body.customer_name,
+                    project_type: req.body.project_type,
+                    refNo: req.body.refNo,
+                    first_party: req.body.first_party,
+                    signing_date: req.body.signing_date,
+                    effective_date: req.body.effective_date,
+                    closing_date: req.body.closing_date,
+                    scan_copy_status: req.body.scan_copy_status,
+                    hard_copy_status: req.body.hard_copy_status,
+                    contract_status: req.body.contract_status,
+                    contract_file: req.file.filename, // Save the file name in the database
+                };
+
+                const result = await contractsCollection.insertOne(newProject);
+                res.send(result);
+            } catch (error) {
+                console.error('Error saving project:', error);
+                res.status(500).send('Server error');
+            }
         });
 
 
