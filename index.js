@@ -748,6 +748,31 @@ async function run() {
             }
         });
 
+        // Get 1st 10 contracts with pagination
+        app.get("/contracts", async (req, res) => {
+            try {
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1;
+                // Default to 10 items per page
+                const limit = parseInt(req.query.limit) || 10;
+                const skip = (page - 1) * limit;
+
+                const total = await contractsCollection.countDocuments();
+                const contracts = await contractsCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    contracts,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch contracts" });
+            }
+        });
+
 
 
 
