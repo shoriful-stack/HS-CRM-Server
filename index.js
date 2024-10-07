@@ -500,6 +500,31 @@ async function run() {
             }
         });
 
+        // Get 1st 10 customers with pagination
+        app.get("/projects_master", async (req, res) => {
+            try {
+                // Default to page 1
+                const page = parseInt(req.query.page) || 1;
+                const limit = parseInt(req.query.limit) || 10;
+                // Default to 10 items per page
+                const skip = (page - 1) * limit;
+
+                const total = await projects_MasterCollection.countDocuments();
+                const projects_master = await projects_MasterCollection.find().skip(skip).limit(limit).toArray();
+
+                res.send({
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                    projects_master,
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: "Failed to fetch projects" });
+            }
+        });
+
         // insert a employee with duplicate error handling
         app.post("/employees", async (req, res) => {
             const employees = req.body;
