@@ -293,6 +293,14 @@ async function run() {
                             { session }
                         );
                     }
+                    // 4. If the customer name has changed, update related contracts
+                    if (oldCustomer !== item.name) {
+                        const customerUpdateResultContract = await contractsCollection.updateMany(
+                            { customer_name: oldCustomer },
+                            { $set: { customer_name: item.name } },
+                            { session }
+                        );
+                    }
 
                     res.send(result);
                 });
@@ -725,7 +733,15 @@ async function run() {
         // Endpoint to handle file and form data
         app.post('/contracts', upload.single('contract_file'), async (req, res) => {
             try {
-                const newProject = {
+                // Parse the closing_date from the request
+                const closingDate = new Date(req.body.closing_date);
+                const today = new Date();
+
+                // Determine contract_status based on closing_date
+                const contract_status = closingDate < today ? "0" : "1"; // "0" for Expired, "1" for Not Expired
+
+                // Create the new contract object
+                const newContract = {
                     contract_title: req.body.contract_title,
                     customer_name: req.body.customer_name,
                     project_type: req.body.project_type,
@@ -736,14 +752,15 @@ async function run() {
                     closing_date: req.body.closing_date,
                     scan_copy_status: req.body.scan_copy_status,
                     hard_copy_status: req.body.hard_copy_status,
-                    contract_status: req.body.contract_status,
+                    contract_status: contract_status,
                     contract_file: req.file.filename, // Save the file name in the database
                 };
 
-                const result = await contractsCollection.insertOne(newProject);
-                res.send(result);
+                // Insert the new contract into the database
+                const result = await contractsCollection.insertOne(newContract);
+                res.status(201).send(result);
             } catch (error) {
-                console.error('Error saving project:', error);
+                console.error('Error saving contract:', error);
                 res.status(500).send('Server error');
             }
         });
@@ -770,6 +787,51 @@ async function run() {
             } catch (error) {
                 console.error(error);
                 res.status(500).send({ error: "Failed to fetch contracts" });
+            }
+        });
+
+        // import contracts functionality
+        app.post('/contracts/all', async (req, res) => {
+            try {
+                // This should be an array of customer objects
+                const contracts = req.body;
+
+                // Ensure contracts is an array
+                if (!Array.isArray(contracts) || contracts.length === 0) {
+                    return res.status(400).send({ error: 'Expected an array of contracts' });
+                }
+
+                const result = await contractsCollection.insertMany(contracts, { ordered: false });
+
+                res.send({ success: true, insertedCount: result.insertedCount });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: 'Failed to import contracts' });
+            }
+        });
+
+        app.get('/contracts/all', async (req, res) => {
+            try {
+                const contracts = await contractsCollection.find().toArray();
+                const today = new Date();
+                // Set time to 00:00:00 to compare only the date, ignoring time
+                today.setHours(0, 0, 0, 0);
+
+                const updatedContracts = contracts.map(contract => {
+                    const closingDate = new Date(contract.closing_date);
+                    closingDate.setHours(0, 0, 0, 0); // Ignore time part of the date
+
+                    // Compare closing date with today
+                    const contract_status = closingDate > today ? "1" : "0";// "0": Expired, "1": Not Expired
+                    // console.log(contract_status);
+                    return { ...contract, contract_status };
+                });
+
+
+                res.send(updatedContracts);
+            } catch (error) {
+                console.error('Error fetching contracts:', error);
+                res.status(500).send('Server error');
             }
         });
 
