@@ -697,7 +697,7 @@ async function run() {
             }
         });
 
-        // New API for exporting all projects without pagination
+        // New API for exporting all employees without pagination
         app.get("/employees/all", async (req, res) => {
             try {
                 // Fetch all employees
@@ -730,7 +730,7 @@ async function run() {
             res.send(result);
         });
 
-        // Endpoint to handle file and form data
+        // Endpoint to post data and handle file and form data
         app.post('/contracts', upload.single('contract_file'), async (req, res) => {
             try {
                 // Parse the closing_date from the request
@@ -810,6 +810,7 @@ async function run() {
             }
         });
 
+        // New API for exporting all contracts without pagination
         app.get('/contracts/all', async (req, res) => {
             try {
                 const contracts = await contractsCollection.find().toArray();
@@ -833,6 +834,39 @@ async function run() {
                 console.error('Error fetching contracts:', error);
                 res.status(500).send('Server error');
             }
+        });
+
+        // update a contract
+        app.patch('/contracts/:id', async (req, res) => {
+            const item = req.body;
+            // Parse the closing_date from the request
+            const closingDate = new Date(item.closing_date);
+            const today = new Date();
+
+            // Determine contract_status based on closing_date
+            const contract_status = closingDate < today ? "0" : "1";
+
+
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedContract = {
+                $set: {
+                    contract_title: item.contract_title,
+                    customer_name: item.customer_name,
+                    project_type: item.project_type,
+                    refNo: item.refNo,
+                    first_party: item.first_party,
+                    signing_date: item.signing_date,
+                    effective_date: item.effective_date,
+                    closing_date: item.closing_date,
+                    contract_status: contract_status,
+                    scan_copy_status: item.scan_copy_status,
+                    hard_copy_status: item.hard_copy_status
+                }
+            }
+
+            const result = await contractsCollection.updateOne(filter, updatedContract)
+            res.send(result);
         });
 
 
