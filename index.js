@@ -58,6 +58,10 @@ async function run() {
             { project_name: 1 },
             { unique: true, name: "project_name" }
         );
+        await contractsCollection.createIndex(
+            { project_id: 1 },
+            { unique: true, name: "project_id" }
+        );
 
         // Set storage engine
         const storage = multer.diskStorage({
@@ -613,6 +617,14 @@ async function run() {
                             { session }
                         );
                     }
+                    // 4. If the project name has changed, update related contract
+                    if (oldProjectName !== item.project_name) {
+                        const projectUpdateResult = await contractsCollection.updateMany(
+                            { project_name: oldProjectName },
+                            { $set: { project_name: item.project_name } },
+                            { session }
+                        );
+                    }
 
                     res.send(result);
                 });
@@ -733,6 +745,41 @@ async function run() {
         });
 
         // Endpoint to post data and handle file and form data
+        // app.post('/contracts', upload.single('contract_file'), async (req, res) => {
+        //     try {
+        //         // Parse the closing_date from the request
+        //         const closingDate = new Date(req.body.closing_date);
+        //         const today = new Date();
+
+        //         // Determine contract_status based on closing_date
+        //         const contract_status = closingDate < today ? "0" : "1"; // "0" for Expired, "1" for Not Expired
+
+        //         // Create the new contract object
+        //         const newContract = {
+        //             contract_title: req.body.contract_title,
+        //             project_name: req.body.project_name,
+        //             customer_name: req.body.customer_name,
+        //             project_type: req.body.project_type,
+        //             refNo: req.body.refNo,
+        //             first_party: req.body.first_party,
+        //             signing_date: req.body.signing_date,
+        //             effective_date: req.body.effective_date,
+        //             closing_date: req.body.closing_date,
+        //             scan_copy_status: req.body.scan_copy_status,
+        //             hard_copy_status: req.body.hard_copy_status,
+        //             contract_status: contract_status,
+        //             contract_file: req.file.filename, // Save the file name in the database
+        //         };
+
+        //         // Insert the new contract into the database
+        //         const result = await contractsCollection.insertOne(newContract);
+        //         res.status(201).send(result);
+        //     } catch (error) {
+        //         console.error('Error saving contract:', error);
+        //         res.status(500).send('Server error');
+        //     }
+        // });
+
         app.post('/contracts', upload.single('contract_file'), async (req, res) => {
             try {
                 // Parse the closing_date from the request
@@ -742,9 +789,19 @@ async function run() {
                 // Determine contract_status based on closing_date
                 const contract_status = closingDate < today ? "0" : "1"; // "0" for Expired, "1" for Not Expired
 
+                // Validate and convert project_id to ObjectId
+                const projectId = new ObjectId(req.body.project_id);
+                const project = await projectsCollection.findOne({ _id: projectId });
+
+                if (!project) {
+                    return res.status(400).send('Invalid project ID');
+                }
+
                 // Create the new contract object
                 const newContract = {
                     contract_title: req.body.contract_title,
+                    project_id: projectId, // Store project_id as ObjectId
+                    project_name: project.project_name, // Optional: store project name redundantly
                     customer_name: req.body.customer_name,
                     project_type: req.body.project_type,
                     refNo: req.body.refNo,
@@ -767,6 +824,7 @@ async function run() {
             }
         });
 
+
         // get the specific contract 
         app.get("/contracts/view/:id", async (req, res) => {
             const id = req.params.id;
@@ -776,16 +834,103 @@ async function run() {
         })
 
         // Get 1st 10 contracts with pagination
-        app.get("/contracts", async (req, res) => {
+        // app.get("/contracts", async (req, res) => {
+        //     try {
+        //         // Default to page 1
+        //         const page = parseInt(req.query.page) || 1;
+        //         // Default to 10 items per page
+        //         const limit = parseInt(req.query.limit) || 10;
+        //         const skip = (page - 1) * limit;
+
+        //         const total = await contractsCollection.countDocuments();
+        //         const contracts = await contractsCollection.find().skip(skip).limit(limit).toArray();
+
+        //         res.send({
+        //             total,
+        //             page,
+        //             limit,
+        //             totalPages: Math.ceil(total / limit),
+        //             contracts,
+        //         });
+        //     } catch (error) {
+        //         console.error(error);
+        //         res.status(500).send({ error: "Failed to fetch contracts" });
+        //     }
+        // });
+
+
+        app.get('/contracts', async (req, res) => {
             try {
-                // Default to page 1
-                const page = parseInt(req.query.page) || 1;
-                // Default to 10 items per page
-                const limit = parseInt(req.query.limit) || 10;
+                const page = parseInt(req.query.page) || 1; // Default to page 1
+                const limit = parseInt(req.query.limit) || 10; // Default to 10 contracts per page
                 const skip = (page - 1) * limit;
 
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const aggregationPipeline = [
+                    {
+                        $lookup: {
+                            from: 'projects',
+                            localField: 'project_id',
+                            foreignField: '_id',
+                            as: 'project_details'
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: '$project_details',
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    {
+                        $addFields: {
+                            contract_status: {
+                                $cond: [
+                                    { $gt: ['$closing_date', today] },
+                                    "1",
+                                    "0"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            contract_title: 1,
+                            project_id: 1,
+                            customer_name: 1,
+                            project_type: 1,
+                            refNo: 1,
+                            first_party: 1,
+                            signing_date: 1,
+                            effective_date: 1,
+                            closing_date: 1,
+                            scan_copy_status: 1,
+                            hard_copy_status: 1,
+                            contract_file: 1,
+                            contract_status: 1,
+                            'project_details._id': 1,
+                            'project_details.project_name': 1,
+                            'project_details.project_category': 1,
+                            'project_details.department': 1,
+                            'project_details.hod': 1,
+                            'project_details.pm': 1,
+                            'project_details.year': 1,
+                            'project_details.phase': 1,
+                            'project_details.project_code': 1,
+                            // Include other necessary project fields
+                        }
+                    },
+                    { $sort: { signing_date: -1 } }, // Optional: Sort by signing_date descending
+                    { $skip: skip },
+                    { $limit: limit }
+                ];
+
+                const contracts = await contractsCollection.aggregate(aggregationPipeline).toArray();
+
+                // Get total count for pagination
                 const total = await contractsCollection.countDocuments();
-                const contracts = await contractsCollection.find().skip(skip).limit(limit).toArray();
 
                 res.send({
                     total,
@@ -795,10 +940,12 @@ async function run() {
                     contracts,
                 });
             } catch (error) {
-                console.error(error);
-                res.status(500).send({ error: "Failed to fetch contracts" });
+                console.error('Error fetching contracts with projects:', error);
+                res.status(500).send('Server error');
             }
         });
+
+
 
         // import contracts functionality
         app.post('/contracts/all', async (req, res) => {
@@ -823,28 +970,74 @@ async function run() {
         // New API for exporting all contracts without pagination
         app.get('/contracts/all', async (req, res) => {
             try {
-                const contracts = await contractsCollection.find().toArray();
                 const today = new Date();
-                // Set time to 00:00:00 to compare only the date, ignoring time
-                today.setHours(0, 0, 0, 0);
-
-                const updatedContracts = contracts.map(contract => {
-                    const closingDate = new Date(contract.closing_date);
-                    closingDate.setHours(0, 0, 0, 0); // Ignore time part of the date
-
-                    // Compare closing date with today
-                    const contract_status = closingDate > today ? "1" : "0";// "0": Expired, "1": Not Expired
-                    // console.log(contract_status);
-                    return { ...contract, contract_status };
-                });
-
-
-                res.send(updatedContracts);
+                today.setHours(0, 0, 0, 0); // Normalize to ignore time
+        
+                const contractsWithProjects = await contractsCollection.aggregate([
+                    {
+                        $lookup: {
+                            from: 'projects', // Collection to join
+                            localField: 'project_id', // Field from contracts
+                            foreignField: '_id', // Field from projects
+                            as: 'project_details' // Output array field
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: '$project_details',
+                            preserveNullAndEmptyArrays: true // Keep contracts without projects
+                        }
+                    },
+                    {
+                        $addFields: {
+                            contract_status: {
+                                $cond: [
+                                    { $gt: ['$closing_date', today] },
+                                    "1", // Not Expired
+                                    "0"  // Expired
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            // Contract fields
+                            _id: 1,
+                            contract_title: 1,
+                            project_id: 1,
+                            customer_name: 1,
+                            project_type: 1,
+                            refNo: 1,
+                            first_party: 1,
+                            signing_date: 1,
+                            effective_date: 1,
+                            closing_date: 1,
+                            scan_copy_status: 1,
+                            hard_copy_status: 1,
+                            contract_file: 1,
+                            contract_status: 1,
+                            // Project fields
+                            'project_details._id': 1,
+                            'project_details.project_name': 1,
+                            'project_details.project_category': 1,
+                            'project_details.department': 1,
+                            'project_details.hod': 1,
+                            'project_details.pm': 1,
+                            'project_details.year': 1,
+                            'project_details.phase': 1,
+                            'project_details.project_code': 1,
+                            // Add more fields as needed
+                        }
+                    }
+                ]).toArray();
+        
+                res.send(contractsWithProjects);
             } catch (error) {
-                console.error('Error fetching contracts:', error);
+                console.error('Error fetching contracts with projects:', error);
                 res.status(500).send('Server error');
             }
         });
+        
 
         // update a contract
         app.patch('/contracts/:id', async (req, res) => {
@@ -862,6 +1055,7 @@ async function run() {
             const updatedContract = {
                 $set: {
                     contract_title: item.contract_title,
+                    project_name: item.project_name,
                     customer_name: item.customer_name,
                     project_type: item.project_type,
                     refNo: item.refNo,
