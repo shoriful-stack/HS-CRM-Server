@@ -65,7 +65,7 @@ async function run() {
 
         // Set storage engine
         const storage = multer.diskStorage({
-            destination: './uploads/',  // You can change the path as needed
+            destination: './uploads/',  // can change the path as needed
             filename: (req, file, cb) => {
                 cb(null, Date.now() + path.extname(file.originalname)); // Append file extension
             },
@@ -787,7 +787,7 @@ async function run() {
                 const today = new Date();
 
                 // Determine contract_status based on closing_date
-                const contract_status = closingDate < today ? "0" : "1"; // "0" for Expired, "1" for Not Expired
+                const contract_status = closingDate > today ? "1" : "0"; // "0" for Expired, "1" for Not Expired
 
                 // Validate and convert project_id to ObjectId
                 const projectId = new ObjectId(req.body.project_id);
@@ -802,8 +802,8 @@ async function run() {
                     contract_title: req.body.contract_title,
                     project_id: projectId, // Store project_id as ObjectId
                     project_name: project.project_name, // Optional: store project name redundantly
-                    customer_name: req.body.customer_name,
-                    project_type: req.body.project_type,
+                    customer_name: project.customer_name,
+                    project_category: project.project_category,
                     refNo: req.body.refNo,
                     first_party: req.body.first_party,
                     signing_date: req.body.signing_date,
@@ -884,23 +884,12 @@ async function run() {
                         }
                     },
                     {
-                        $addFields: {
-                            contract_status: {
-                                $cond: [
-                                    { $gt: ['$closing_date', today] },
-                                    "1",
-                                    "0"
-                                ]
-                            }
-                        }
-                    },
-                    {
                         $project: {
                             _id: 1,
                             contract_title: 1,
                             project_id: 1,
                             customer_name: 1,
-                            project_type: 1,
+                            project_category: 1,
                             refNo: 1,
                             first_party: 1,
                             signing_date: 1,
@@ -989,17 +978,6 @@ async function run() {
                         }
                     },
                     {
-                        $addFields: {
-                            contract_status: {
-                                $cond: [
-                                    { $gt: ['$closing_date', today] },
-                                    "1", // Not Expired
-                                    "0"  // Expired
-                                ]
-                            }
-                        }
-                    },
-                    {
                         $project: {
                             // Contract fields
                             _id: 1,
@@ -1047,7 +1025,7 @@ async function run() {
             const today = new Date();
 
             // Determine contract_status based on closing_date
-            const contract_status = closingDate < today ? "0" : "1";
+            const contract_status = closingDate > today ? "1" : "0";
 
 
             const id = req.params.id;
