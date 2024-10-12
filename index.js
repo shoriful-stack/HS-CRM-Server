@@ -362,10 +362,24 @@ async function run() {
                 const page = parseInt(req.query.page) || 1;
                 // Default to 10 items per page
                 const limit = parseInt(req.query.limit) || 10;
+                const search = req.query.search || "";
                 const skip = (page - 1) * limit;
 
-                const total = await departmentsCollection.countDocuments();
-                const departments = await departmentsCollection.find().skip(skip).limit(limit).toArray();
+                // Build the search query
+                let query = {};
+                if (search) {
+                    // Use a case-insensitive regex to search in name, email, or phone
+                    const regex = new RegExp(search, "i");
+                    query = {
+                        $or: [
+                            { department_name: { $regex: regex } },
+                            { department_status: { $regex: regex } },
+                        ],
+                    };
+                }
+
+                const total = await departmentsCollection.countDocuments(query);
+                const departments = await departmentsCollection.find(query).skip(skip).limit(limit).toArray();
 
                 res.send({
                     total,
