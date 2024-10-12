@@ -482,10 +482,24 @@ async function run() {
                 const page = parseInt(req.query.page) || 1;
                 // Default to 10 items per page
                 const limit = parseInt(req.query.limit) || 10;
+                const search = req.query.search || "";
                 const skip = (page - 1) * limit;
 
-                const total = await designationsCollection.countDocuments();
-                const designations = await designationsCollection.find().skip(skip).limit(limit).toArray();
+                // Build the search query
+                let query = {};
+                if (search) {
+                    // Use a case-insensitive regex to search in name, email, or phone
+                    const regex = new RegExp(search, "i");
+                    query = {
+                        $or: [
+                            { designation: { $regex: regex } },
+                            { designation_status: { $regex: regex } },
+                        ],
+                    };
+                }
+
+                const total = await designationsCollection.countDocuments(query);
+                const designations = await designationsCollection.find(query).skip(skip).limit(limit).toArray();
 
                 res.send({
                     total,
@@ -589,10 +603,25 @@ async function run() {
                 const page = parseInt(req.query.page) || 1;
                 const limit = parseInt(req.query.limit) || 10;
                 // Default to 10 items per page
+                const search = req.query.search || "";
                 const skip = (page - 1) * limit;
 
-                const total = await projects_MasterCollection.countDocuments();
-                const projects_master = await projects_MasterCollection.find().skip(skip).limit(limit).toArray();
+                // Build the search query
+                let query = {};
+                if (search) {
+                    // Use a case-insensitive regex to search in name, email, or phone
+                    const regex = new RegExp(search, "i");
+                    query = {
+                        $or: [
+                            { project_name: { $regex: regex } },
+                            { project_code: { $regex: regex } },
+                            { project_status: { $regex: regex } },
+                        ],
+                    };
+                }
+
+                const total = await projects_MasterCollection.countDocuments(query);
+                const projects_master = await projects_MasterCollection.find(query).skip(skip).limit(limit).toArray();
 
                 res.send({
                     total,
