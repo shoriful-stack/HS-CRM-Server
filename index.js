@@ -62,6 +62,15 @@ async function run() {
             { project_id: 1 },
             { unique: true, name: "project_id" }
         );
+        // Example: Creating indexes
+        await contractsCollection.createIndex({ project_category: 1 });
+        await contractsCollection.createIndex({ contract_status: 1 });
+        await contractsCollection.createIndex({ project_name: 1 });
+        await contractsCollection.createIndex({ customer_name: 1 });
+        // await contractsCollection.createIndex({ signing_date: 1 });
+        // await contractsCollection.createIndex({ effective_date: 1 });
+        // await contractsCollection.createIndex({ closing_date: 1 });
+
 
 
         // Set storage engine
@@ -823,41 +832,6 @@ async function run() {
         });
 
         // Endpoint to post data and handle file and form data
-        // app.post('/contracts', upload.single('contract_file'), async (req, res) => {
-        //     try {
-        //         // Parse the closing_date from the request
-        //         const closingDate = new Date(req.body.closing_date);
-        //         const today = new Date();
-
-        //         // Determine contract_status based on closing_date
-        //         const contract_status = closingDate < today ? "0" : "1"; // "0" for Expired, "1" for Not Expired
-
-        //         // Create the new contract object
-        //         const newContract = {
-        //             contract_title: req.body.contract_title,
-        //             project_name: req.body.project_name,
-        //             customer_name: req.body.customer_name,
-        //             project_type: req.body.project_type,
-        //             refNo: req.body.refNo,
-        //             first_party: req.body.first_party,
-        //             signing_date: req.body.signing_date,
-        //             effective_date: req.body.effective_date,
-        //             closing_date: req.body.closing_date,
-        //             scan_copy_status: req.body.scan_copy_status,
-        //             hard_copy_status: req.body.hard_copy_status,
-        //             contract_status: contract_status,
-        //             contract_file: req.file.filename, // Save the file name in the database
-        //         };
-
-        //         // Insert the new contract into the database
-        //         const result = await contractsCollection.insertOne(newContract);
-        //         res.status(201).send(result);
-        //     } catch (error) {
-        //         console.error('Error saving contract:', error);
-        //         res.status(500).send('Server error');
-        //     }
-        // });
-
         app.post('/contracts', upload.single('contract_file'), async (req, res) => {
             try {
                 // Parse the closing_date from the request
@@ -942,17 +916,17 @@ async function run() {
                 const page = parseInt(req.query.page) || 1; // Default to page 1
                 const limit = parseInt(req.query.limit) || 10; // Default to 10 contracts per page
                 const skip = (page - 1) * limit;
-                const { project_category, contractStatus } = req.query;
+                const { project_category, contractStatus, project_name, customer_name } = req.query;
 
                 // Build match stage based on filters
                 const matchStage = {};
 
                 if (project_category) {
-                    if(project_category === "Service"){
+                    if (project_category === "Service") {
                         matchStage.project_category = "1";
-                    }else if(project_category === "Product"){
+                    } else if (project_category === "Product") {
                         matchStage.project_category = "2";
-                    }else{
+                    } else {
                         matchStage.project_category = "3"
                     }
                 }
@@ -963,6 +937,14 @@ async function run() {
                     } else if (contractStatus === "Not Expired") {
                         matchStage.contract_status = "1";
                     }
+                }
+
+                if (project_name) {
+                    matchStage.project_name = project_name;
+                }
+
+                if (customer_name) {
+                    matchStage.customer_name = customer_name;
                 }
 
                 const today = new Date();
@@ -990,6 +972,7 @@ async function run() {
                             _id: 1,
                             contract_title: 1,
                             project_id: 1,
+                            project_name: 1,
                             customer_name: 1,
                             project_category: 1,
                             refNo: 1,
@@ -1046,7 +1029,6 @@ async function run() {
         });
 
 
-
         // import contracts functionality
         app.post('/contracts/all', async (req, res) => {
             try {
@@ -1068,34 +1050,127 @@ async function run() {
         });
 
         // New API for exporting all contracts without pagination
+        // app.get('/contracts/all', async (req, res) => {
+        //     try {
+        //         const today = new Date();
+        //         today.setHours(0, 0, 0, 0); // Normalize to ignore time
+
+        //         const contractsWithProjects = await contractsCollection.aggregate([
+        //             {
+        //                 $lookup: {
+        //                     from: 'projects', // Collection to join
+        //                     localField: 'project_id', // Field from contracts
+        //                     foreignField: '_id', // Field from projects
+        //                     as: 'project_details' // Output array field
+        //                 }
+        //             },
+        //             {
+        //                 $unwind: {
+        //                     path: '$project_details',
+        //                     preserveNullAndEmptyArrays: true // Keep contracts without projects
+        //                 }
+        //             },
+        //             {
+        //                 $project: {
+        //                     // Contract fields
+        //                     _id: 1,
+        //                     contract_title: 1,
+        //                     project_id: 1,
+        //                     project_name: 1,
+        //                     customer_name: 1,
+        //                     project_type: 1,
+        //                     refNo: 1,
+        //                     first_party: 1,
+        //                     signing_date: 1,
+        //                     effective_date: 1,
+        //                     closing_date: 1,
+        //                     scan_copy_status: 1,
+        //                     hard_copy_status: 1,
+        //                     contract_file: 1,
+        //                     contract_status: 1,
+        //                     // Project fields
+        //                     'project_details._id': 1,
+        //                     'project_details.project_name': 1,
+        //                     'project_details.project_category': 1,
+        //                     'project_details.department': 1,
+        //                     'project_details.hod': 1,
+        //                     'project_details.pm': 1,
+        //                     'project_details.year': 1,
+        //                     'project_details.phase': 1,
+        //                     'project_details.project_code': 1,
+        //                     // Add more fields as needed
+        //                 }
+        //             }
+        //         ]).toArray();
+
+        //         res.send(contractsWithProjects);
+        //     } catch (error) {
+        //         console.error('Error fetching contracts with projects:', error);
+        //         res.status(500).send('Server error');
+        //     }
+        // });
+
+
         app.get('/contracts/all', async (req, res) => {
             try {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); // Normalize to ignore time
-
-                const contractsWithProjects = await contractsCollection.aggregate([
+                const { project_category, contractStatus, project_name, customer_name } = req.query;
+        
+                // Build match stage based on filters
+                const matchStage = {};
+        
+                if (project_category) {
+                    if(project_category === "Service"){
+                        matchStage.project_category = "1";
+                    } else if(project_category === "Product"){
+                        matchStage.project_category = "2";
+                    } else {
+                        matchStage.project_category = "3";
+                    }
+                }
+        
+                if (contractStatus) {
+                    if (contractStatus === "Expired") {
+                        matchStage.contract_status = "0";
+                    } else if (contractStatus === "Not Expired") {
+                        matchStage.contract_status = "1";
+                    }
+                }
+        
+                if (project_name) {
+                    matchStage.project_name = project_name;
+                }
+        
+                if (customer_name) {
+                    matchStage.customer_name = customer_name;
+                }
+        
+                // No need to merge date filters into matchStage anymore
+        
+                const aggregationPipeline = [
                     {
                         $lookup: {
-                            from: 'projects', // Collection to join
-                            localField: 'project_id', // Field from contracts
-                            foreignField: '_id', // Field from projects
-                            as: 'project_details' // Output array field
+                            from: 'projects',
+                            localField: 'project_id',
+                            foreignField: '_id',
+                            as: 'project_details'
                         }
                     },
                     {
                         $unwind: {
                             path: '$project_details',
-                            preserveNullAndEmptyArrays: true // Keep contracts without projects
+                            preserveNullAndEmptyArrays: true
                         }
                     },
+                    // Apply filters if any
+                    ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
                     {
                         $project: {
-                            // Contract fields
                             _id: 1,
                             contract_title: 1,
                             project_id: 1,
+                            project_name: 1,
                             customer_name: 1,
-                            project_type: 1,
+                            project_category: 1,
                             refNo: 1,
                             first_party: 1,
                             signing_date: 1,
@@ -1105,7 +1180,6 @@ async function run() {
                             hard_copy_status: 1,
                             contract_file: 1,
                             contract_status: 1,
-                            // Project fields
                             'project_details._id': 1,
                             'project_details.project_name': 1,
                             'project_details.project_category': 1,
@@ -1115,17 +1189,22 @@ async function run() {
                             'project_details.year': 1,
                             'project_details.phase': 1,
                             'project_details.project_code': 1,
-                            // Add more fields as needed
+                            // Include other necessary project fields
                         }
-                    }
-                ]).toArray();
-
-                res.send(contractsWithProjects);
+                    },
+                    { $sort: { signing_date: -1 } } // Optional: Sort by ID descending or customize sorting
+                ];
+        
+                const contracts = await contractsCollection.aggregate(aggregationPipeline).toArray();
+        
+                res.send(contracts);
             } catch (error) {
-                console.error('Error fetching contracts with projects:', error);
-                res.status(500).send('Server error');
+                console.error('Error fetching all contracts with projects:', error);
+                res.status(500).send({ error: 'Server error' });
             }
-        });
+        });        
+        
+
 
 
         // update a contract
