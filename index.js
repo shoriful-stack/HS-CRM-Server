@@ -942,6 +942,28 @@ async function run() {
                 const page = parseInt(req.query.page) || 1; // Default to page 1
                 const limit = parseInt(req.query.limit) || 10; // Default to 10 contracts per page
                 const skip = (page - 1) * limit;
+                const { project_category, contractStatus } = req.query;
+
+                // Build match stage based on filters
+                const matchStage = {};
+
+                if (project_category) {
+                    if(project_category === "Service"){
+                        matchStage.project_category = "1";
+                    }else if(project_category === "Product"){
+                        matchStage.project_category = "2";
+                    }else{
+                        matchStage.project_category = "3"
+                    }
+                }
+
+                if (contractStatus) {
+                    if (contractStatus === "Expired") {
+                        matchStage.contract_status = "0";
+                    } else if (contractStatus === "Not Expired") {
+                        matchStage.contract_status = "1";
+                    }
+                }
 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -961,6 +983,8 @@ async function run() {
                             preserveNullAndEmptyArrays: true
                         }
                     },
+                    // Apply filters if any
+                    ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
                     {
                         $project: {
                             _id: 1,
@@ -995,9 +1019,18 @@ async function run() {
                 ];
 
                 const contracts = await contractsCollection.aggregate(aggregationPipeline).toArray();
+                // Get total count for pagination with filters
+                const totalMatchStage = Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : [];
+                const totalAggregation = [
+                    ...totalMatchStage,
+                    {
+                        $count: "total"
+                    }
+                ];
 
                 // Get total count for pagination
-                const total = await contractsCollection.countDocuments();
+                const totalResult = await contractsCollection.aggregate(totalAggregation).toArray();
+                const total = totalResult[0]?.total || 0;
 
                 res.send({
                     total,
