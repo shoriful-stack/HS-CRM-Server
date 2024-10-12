@@ -63,6 +63,15 @@ async function run() {
             { unique: true, name: "project_id" }
         );
 
+        // Example: Creating a text index on multiple fields
+        // await customersCollection.createIndex({
+        //     name: "text",
+        //     email: "text",
+        //     phone: "text",
+        //     address: "text"
+        // });
+
+
         // Set storage engine
         const storage = multer.diskStorage({
             destination: './uploads/',  // can change the path as needed
@@ -238,10 +247,26 @@ async function run() {
                 const page = parseInt(req.query.page) || 1;
                 // Default to 10 items per page
                 const limit = parseInt(req.query.limit) || 10;
+                const search = req.query.search || "";
                 const skip = (page - 1) * limit;
 
-                const total = await customersCollection.countDocuments();
-                const customers = await customersCollection.find().skip(skip).limit(limit).toArray();
+                // Build the search query
+                let query = {};
+                if (search) {
+                    // Use a case-insensitive regex to search in name, email, or phone
+                    const regex = new RegExp(search, "i");
+                    query = {
+                        $or: [
+                            { name: { $regex: regex } },
+                            { email: { $regex: regex } },
+                            { phone: { $regex: regex } },
+                            { address: { $regex: regex } },
+                        ],
+                    };
+                }
+
+                const total = await customersCollection.countDocuments(query);
+                const customers = await customersCollection.find(query).skip(skip).limit(limit).toArray();
 
                 res.send({
                     total,
@@ -961,7 +986,7 @@ async function run() {
             try {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0); // Normalize to ignore time
-        
+
                 const contractsWithProjects = await contractsCollection.aggregate([
                     {
                         $lookup: {
@@ -1008,14 +1033,14 @@ async function run() {
                         }
                     }
                 ]).toArray();
-        
+
                 res.send(contractsWithProjects);
             } catch (error) {
                 console.error('Error fetching contracts with projects:', error);
                 res.status(500).send('Server error');
             }
         });
-        
+
 
         // update a contract
         app.patch('/contracts/:id', async (req, res) => {
