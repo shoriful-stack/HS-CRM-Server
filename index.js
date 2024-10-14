@@ -67,9 +67,9 @@ async function run() {
         await contractsCollection.createIndex({ contract_status: 1 });
         await contractsCollection.createIndex({ project_name: 1 });
         await contractsCollection.createIndex({ customer_name: 1 });
-        // await contractsCollection.createIndex({ signing_date: 1 });
-        // await contractsCollection.createIndex({ effective_date: 1 });
-        // await contractsCollection.createIndex({ closing_date: 1 });
+        await contractsCollection.createIndex({ signing_date: 1 });
+        await contractsCollection.createIndex({ effective_date: 1 });
+        await contractsCollection.createIndex({ closing_date: 1 });
 
 
 
@@ -834,7 +834,9 @@ async function run() {
         // Endpoint to post data and handle file and form data
         app.post('/contracts', upload.single('contract_file'), async (req, res) => {
             try {
-                // Parse the closing_date from the request
+                // Parse the date fields from the request and convert them to Date objects
+                const signingDate = new Date(req.body.signing_date);
+                const effectiveDate = new Date(req.body.effective_date);
                 const closingDate = new Date(req.body.closing_date);
                 const today = new Date();
 
@@ -849,7 +851,7 @@ async function run() {
                     return res.status(400).send('Invalid project ID');
                 }
 
-                // Create the new contract object
+                // Create the new contract object with Date objects
                 const newContract = {
                     contract_title: req.body.contract_title,
                     project_id: projectId, // Store project_id as ObjectId
@@ -858,9 +860,9 @@ async function run() {
                     project_category: project.project_category,
                     refNo: req.body.refNo,
                     first_party: req.body.first_party,
-                    signing_date: req.body.signing_date,
-                    effective_date: req.body.effective_date,
-                    closing_date: req.body.closing_date,
+                    signing_date: signingDate,        // Store as Date object
+                    effective_date: effectiveDate,    // Store as Date object
+                    closing_date: closingDate,        // Store as Date object
                     scan_copy_status: req.body.scan_copy_status,
                     hard_copy_status: req.body.hard_copy_status,
                     contract_status: contract_status,
@@ -873,6 +875,27 @@ async function run() {
             } catch (error) {
                 console.error('Error saving contract:', error);
                 res.status(500).send('Server error');
+            }
+        });
+
+
+        // import contracts functionality
+        app.post('/contracts/all', async (req, res) => {
+            try {
+                // This should be an array of customer objects
+                const contracts = req.body;
+
+                // Ensure contracts is an array
+                if (!Array.isArray(contracts) || contracts.length === 0) {
+                    return res.status(400).send({ error: 'Expected an array of contracts' });
+                }
+
+                const result = await contractsCollection.insertMany(contracts, { ordered: false });
+
+                res.send({ success: true, insertedCount: result.insertedCount });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ error: 'Failed to import contracts' });
             }
         });
 
@@ -916,7 +939,18 @@ async function run() {
                 const page = parseInt(req.query.page) || 1; // Default to page 1
                 const limit = parseInt(req.query.limit) || 10; // Default to 10 contracts per page
                 const skip = (page - 1) * limit;
-                const { project_category, contractStatus, project_name, customer_name } = req.query;
+                const {
+                    project_category,
+                    contractStatus,
+                    project_name,
+                    customer_name,
+                    signingDateFrom,
+                    signingDateTo,
+                    effectiveDateFrom,
+                    effectiveDateTo,
+                    closingDateFrom,
+                    closingDateTo
+                } = req.query;
 
                 // Build match stage based on filters
                 const matchStage = {};
@@ -927,7 +961,7 @@ async function run() {
                     } else if (project_category === "Product") {
                         matchStage.project_category = "2";
                     } else {
-                        matchStage.project_category = "3"
+                        matchStage.project_category = "3";
                     }
                 }
 
@@ -947,8 +981,36 @@ async function run() {
                     matchStage.customer_name = customer_name;
                 }
 
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
+                // Date Filters
+                if (signingDateFrom || signingDateTo) {
+                    matchStage.signing_date = {};
+                    if (signingDateFrom) {
+                        matchStage.signing_date.$gte = new Date(signingDateFrom);
+                    }
+                    if (signingDateTo) {
+                        matchStage.signing_date.$lte = new Date(signingDateTo);
+                    }
+                }
+
+                if (effectiveDateFrom || effectiveDateTo) {
+                    matchStage.effective_date = {};
+                    if (effectiveDateFrom) {
+                        matchStage.effective_date.$gte = new Date(effectiveDateFrom);
+                    }
+                    if (effectiveDateTo) {
+                        matchStage.effective_date.$lte = new Date(effectiveDateTo);
+                    }
+                }
+
+                if (closingDateFrom || closingDateTo) {
+                    matchStage.closing_date = {};
+                    if (closingDateFrom) {
+                        matchStage.closing_date.$gte = new Date(closingDateFrom);
+                    }
+                    if (closingDateTo) {
+                        matchStage.closing_date.$lte = new Date(closingDateTo);
+                    }
+                }
 
                 const aggregationPipeline = [
                     {
@@ -996,22 +1058,19 @@ async function run() {
                             // Include other necessary project fields
                         }
                     },
-                    { $sort: { signing_date: -1 } }, // Optional: Sort by signing_date descending
+                    { $sort: { signing_date: -1 } }, // Sort by signing_date descending
                     { $skip: skip },
                     { $limit: limit }
                 ];
 
                 const contracts = await contractsCollection.aggregate(aggregationPipeline).toArray();
+
                 // Get total count for pagination with filters
-                const totalMatchStage = Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : [];
                 const totalAggregation = [
-                    ...totalMatchStage,
-                    {
-                        $count: "total"
-                    }
+                    { $match: matchStage },
+                    { $count: "total" }
                 ];
 
-                // Get total count for pagination
                 const totalResult = await contractsCollection.aggregate(totalAggregation).toArray();
                 const total = totalResult[0]?.total || 0;
 
@@ -1029,105 +1088,35 @@ async function run() {
         });
 
 
-        // import contracts functionality
-        app.post('/contracts/all', async (req, res) => {
-            try {
-                // This should be an array of customer objects
-                const contracts = req.body;
-
-                // Ensure contracts is an array
-                if (!Array.isArray(contracts) || contracts.length === 0) {
-                    return res.status(400).send({ error: 'Expected an array of contracts' });
-                }
-
-                const result = await contractsCollection.insertMany(contracts, { ordered: false });
-
-                res.send({ success: true, insertedCount: result.insertedCount });
-            } catch (error) {
-                console.error(error);
-                res.status(500).send({ error: 'Failed to import contracts' });
-            }
-        });
-
-        // New API for exporting all contracts without pagination
-        // app.get('/contracts/all', async (req, res) => {
-        //     try {
-        //         const today = new Date();
-        //         today.setHours(0, 0, 0, 0); // Normalize to ignore time
-
-        //         const contractsWithProjects = await contractsCollection.aggregate([
-        //             {
-        //                 $lookup: {
-        //                     from: 'projects', // Collection to join
-        //                     localField: 'project_id', // Field from contracts
-        //                     foreignField: '_id', // Field from projects
-        //                     as: 'project_details' // Output array field
-        //                 }
-        //             },
-        //             {
-        //                 $unwind: {
-        //                     path: '$project_details',
-        //                     preserveNullAndEmptyArrays: true // Keep contracts without projects
-        //                 }
-        //             },
-        //             {
-        //                 $project: {
-        //                     // Contract fields
-        //                     _id: 1,
-        //                     contract_title: 1,
-        //                     project_id: 1,
-        //                     project_name: 1,
-        //                     customer_name: 1,
-        //                     project_type: 1,
-        //                     refNo: 1,
-        //                     first_party: 1,
-        //                     signing_date: 1,
-        //                     effective_date: 1,
-        //                     closing_date: 1,
-        //                     scan_copy_status: 1,
-        //                     hard_copy_status: 1,
-        //                     contract_file: 1,
-        //                     contract_status: 1,
-        //                     // Project fields
-        //                     'project_details._id': 1,
-        //                     'project_details.project_name': 1,
-        //                     'project_details.project_category': 1,
-        //                     'project_details.department': 1,
-        //                     'project_details.hod': 1,
-        //                     'project_details.pm': 1,
-        //                     'project_details.year': 1,
-        //                     'project_details.phase': 1,
-        //                     'project_details.project_code': 1,
-        //                     // Add more fields as needed
-        //                 }
-        //             }
-        //         ]).toArray();
-
-        //         res.send(contractsWithProjects);
-        //     } catch (error) {
-        //         console.error('Error fetching contracts with projects:', error);
-        //         res.status(500).send('Server error');
-        //     }
-        // });
-
-
+        // Existing imports and setup...
         app.get('/contracts/all', async (req, res) => {
             try {
-                const { project_category, contractStatus, project_name, customer_name } = req.query;
-        
+                const {
+                    project_category,
+                    contractStatus,
+                    project_name,
+                    customer_name,
+                    signingDateFrom,
+                    signingDateTo,
+                    effectiveDateFrom,
+                    effectiveDateTo,
+                    closingDateFrom,
+                    closingDateTo
+                } = req.query;
+
                 // Build match stage based on filters
                 const matchStage = {};
-        
+
                 if (project_category) {
-                    if(project_category === "Service"){
+                    if (project_category === "Service") {
                         matchStage.project_category = "1";
-                    } else if(project_category === "Product"){
+                    } else if (project_category === "Product") {
                         matchStage.project_category = "2";
                     } else {
                         matchStage.project_category = "3";
                     }
                 }
-        
+
                 if (contractStatus) {
                     if (contractStatus === "Expired") {
                         matchStage.contract_status = "0";
@@ -1135,17 +1124,46 @@ async function run() {
                         matchStage.contract_status = "1";
                     }
                 }
-        
+
                 if (project_name) {
                     matchStage.project_name = project_name;
                 }
-        
+
                 if (customer_name) {
                     matchStage.customer_name = customer_name;
                 }
-        
-                // No need to merge date filters into matchStage anymore
-        
+
+                // Date Filters
+                if (signingDateFrom || signingDateTo) {
+                    matchStage.signing_date = {};
+                    if (signingDateFrom) {
+                        matchStage.signing_date.$gte = new Date(signingDateFrom);
+                    }
+                    if (signingDateTo) {
+                        matchStage.signing_date.$lte = new Date(signingDateTo);
+                    }
+                }
+
+                if (effectiveDateFrom || effectiveDateTo) {
+                    matchStage.effective_date = {};
+                    if (effectiveDateFrom) {
+                        matchStage.effective_date.$gte = new Date(effectiveDateFrom);
+                    }
+                    if (effectiveDateTo) {
+                        matchStage.effective_date.$lte = new Date(effectiveDateTo);
+                    }
+                }
+
+                if (closingDateFrom || closingDateTo) {
+                    matchStage.closing_date = {};
+                    if (closingDateFrom) {
+                        matchStage.closing_date.$gte = new Date(closingDateFrom);
+                    }
+                    if (closingDateTo) {
+                        matchStage.closing_date.$lte = new Date(closingDateTo);
+                    }
+                }
+
                 const aggregationPipeline = [
                     {
                         $lookup: {
@@ -1189,28 +1207,29 @@ async function run() {
                             'project_details.year': 1,
                             'project_details.phase': 1,
                             'project_details.project_code': 1,
-                            // Include other necessary project fields
                         }
                     },
-                    { $sort: { signing_date: -1 } } // Optional: Sort by ID descending or customize sorting
+                    { $sort: { signing_date: -1 } }, // Sort by signing_date descending
+                    { $skip: 0 }, // No skip for exporting all
+                    { $limit: 1000000 } // A large number to fetch all; adjust as needed
                 ];
-        
+
                 const contracts = await contractsCollection.aggregate(aggregationPipeline).toArray();
-        
+
                 res.send(contracts);
             } catch (error) {
                 console.error('Error fetching all contracts with projects:', error);
-                res.status(500).send({ error: 'Server error' });
+                res.status(500).send('Server error');
             }
-        });        
-        
-
+        });
 
 
         // update a contract
         app.patch('/contracts/:id', async (req, res) => {
             const item = req.body;
             // Parse the closing_date from the request
+            const signingDate = new Date(item.signing_date);
+            const effectiveDate = new Date(item.effective_date);
             const closingDate = new Date(item.closing_date);
             const today = new Date();
 
@@ -1228,9 +1247,9 @@ async function run() {
                     project_type: item.project_type,
                     refNo: item.refNo,
                     first_party: item.first_party,
-                    signing_date: item.signing_date,
-                    effective_date: item.effective_date,
-                    closing_date: item.closing_date,
+                    signing_date: signingDate,
+                    effective_date: effectiveDate,
+                    closing_date: closingDate,
                     contract_status: contract_status,
                     scan_copy_status: item.scan_copy_status,
                     hard_copy_status: item.hard_copy_status
