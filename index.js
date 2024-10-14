@@ -71,6 +71,8 @@ async function run() {
         await contractsCollection.createIndex({ effective_date: 1 });
         await contractsCollection.createIndex({ closing_date: 1 });
 
+        await projectsCollection.createIndex({ project_category: 1 });
+        
 
 
         // Set storage engine
@@ -115,7 +117,53 @@ async function run() {
         // New API for exporting all projects without pagination
         app.get("/projects/all", async (req, res) => {
             try {
-                const projects = await projectsCollection.find().toArray();
+                const {
+                    project_category,
+                    project_name,
+                    customer_name,
+                    department,
+                    pm,
+                    year,
+                    project_code
+                } = req.query;
+
+                // Build match stage based on filters
+                const matchStage = {};
+
+                if (project_category) {
+                    if (project_category === "Service") {
+                        matchStage.project_category = "1";
+                    } else if (project_category === "Product") {
+                        matchStage.project_category = "2";
+                    } else {
+                        matchStage.project_category = "3";
+                    }
+                }
+
+                if (project_name) {
+                    matchStage.project_name = { $regex: new RegExp(project_name, "i") };
+                }
+
+                if (customer_name) {
+                    matchStage.customer_name = { $regex: new RegExp(customer_name, "i") };
+                }
+
+                if (department) {
+                    matchStage.department = { $regex: new RegExp(department, "i") };
+                }
+                if (pm) {
+                    matchStage.pm = { $regex: new RegExp(pm, "i") };
+                }
+
+                if (year) {
+                    matchStage.year = year;
+                }
+
+                if (project_code) {
+                    matchStage.project_code = { $regex: new RegExp(project_code, "i") };
+                }
+
+                const projects = await projectsCollection.find(matchStage).toArray();
                 res.send(projects);
             } catch (error) {
                 console.error(error);
@@ -123,17 +171,64 @@ async function run() {
             }
         });
 
+
         // Get 1st 10 customers with pagination
         app.get("/projects", async (req, res) => {
             try {
                 // Default to page 1
                 const page = parseInt(req.query.page) || 1;
                 const limit = parseInt(req.query.limit) || 10;
-                // Default to 10 items per page
+                // Calculate the number of documents to skip
                 const skip = (page - 1) * limit;
+                const {
+                    project_category,
+                    project_name,
+                    customer_name,
+                    department,
+                    pm,
+                    year,
+                    project_code
+                } = req.query;
 
-                const total = await projectsCollection.countDocuments();
-                const projects = await projectsCollection.find().skip(skip).limit(limit).toArray();
+                // Build match stage based on filters
+                const matchStage = {};
+
+                if (project_category) {
+                    if (project_category === "Service") {
+                        matchStage.project_category = "1";
+                    } else if (project_category === "Product") {
+                        matchStage.project_category = "2";
+                    } else {
+                        matchStage.project_category = "3";
+                    }
+                }
+
+                if (project_name) {
+                    matchStage.project_name = { $regex: new RegExp(project_name, "i") };
+                }
+
+                if (customer_name) {
+                    matchStage.customer_name = { $regex: new RegExp(customer_name, "i") };
+                }
+
+                if (department) {
+                    matchStage.department = { $regex: new RegExp(department, "i") };
+                }
+                if (pm) {
+                    matchStage.pm = { $regex: new RegExp(pm, "i") };
+                }
+
+                if (year) {
+                    matchStage.year = year;
+                }
+
+                if (project_code) {
+                    matchStage.project_code = { $regex: new RegExp(project_code, "i") };
+                }
+
+                // Apply matchStage to countDocuments and find
+                const total = await projectsCollection.countDocuments(matchStage);
+                const projects = await projectsCollection.find(matchStage).skip(skip).limit(limit).toArray();
 
                 res.send({
                     total,
@@ -144,9 +239,10 @@ async function run() {
                 });
             } catch (error) {
                 console.error(error);
-                res.status(500).send({ error: "Failed to fetch customers" });
+                res.status(500).send({ error: "Failed to fetch projects" });
             }
         });
+
         // update a projects
         app.patch('/projects/:id', async (req, res) => {
             const item = req.body;
