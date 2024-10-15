@@ -51,8 +51,8 @@ async function run() {
             { unique: true, name: "designation" }
         );
         await employeesCollection.createIndex(
-            { employee_name: 1 },
-            { unique: true, name: "employee_name" }
+            { employee_uid: 1 },
+            { unique: true, name: "employee_uid" }
         );
         await projects_MasterCollection.createIndex(
             { project_name: 1 },
